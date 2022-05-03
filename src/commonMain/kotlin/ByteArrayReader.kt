@@ -5,5 +5,8 @@ expect class ByteArrayReader(array: ByteArray) {
     fun readi64(): Long
     fun readf32(): Float
     fun readf64(): Double
+    fun readMulti(length: Int): ByteArray
     fun readString(length: Int): String
+    fun readBigNumber(digits: Int): String
+    fun readInflated(expect: Int): ByteArray
 }
