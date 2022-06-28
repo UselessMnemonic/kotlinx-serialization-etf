@@ -44,7 +44,7 @@ actual class ByteArrayReader actual constructor(array: ByteArray) {
     actual fun readInflated(expect: Int): ByteArray {
         val result = ByteArray(expect)
         val inflater = Inflater()
-        inflater.setInput(buffer)
+        inflater.setInput(buffer.array(), buffer.position(), buffer.remaining())
         inflater.inflate(result)
         return result
     }

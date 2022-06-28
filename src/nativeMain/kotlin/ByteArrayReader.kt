@@ -1,8 +1,7 @@
-import platform.zlib.Z_NULL
-import platform.zlib.inflateInit2
-import platform.zlib.z_stream
+import kotlinx.cinterop.*
+import platform.zlib.*
 
-actual class ByteArrayReader(private val array: ByteArray) {
+actual class ByteArrayReader actual constructor(private val array: ByteArray) {
 
     private var offset = 0
 
@@ -67,18 +66,43 @@ actual class ByteArrayReader(private val array: ByteArray) {
     }
 
     actual fun readInflated(expect: Int): ByteArray {
-        val strm = CPtr<z_stream>()
-        val din = array.sliceArray(offset until array.size)
-        val dout = ByteArray(expect)
+        val available = array.size - offset
+        val din = array.pin()
+        val output = ByteArray(expect)
+        val dout = output.pin()
 
-        strm.zalloc = Z_NULL
-        strm.zfree = Z_NULL
-        strm.opaque = Z_NULL
-        strm.avail_in = 0
-        strm.next_in = Z_NULL
-        ret = inflateInit(strm)
-        if (ret != Z_OK) {
-            throw IllegateStateException("zlib error code $ret")
+        var result = memScoped {
+            val strm = alloc<z_stream_s> {
+                zalloc = null
+                zfree = null
+                opaque = null
+                avail_in = 0u
+                next_in = null
+            }
+
+            var ret = inflateInit(strm.ptr)
+            if (ret != Z_OK) {
+                return@memScoped ret
+            }
+
+            strm.avail_in = available.convert()
+            strm.next_in = din.addressOf(offset) as CPointer<UByteVar>
+
+            strm.avail_out = expect.convert()
+            strm.next_out = dout.addressOf(0) as CPointer<UByteVar>
+
+            ret = inflate(strm.ptr, Z_NO_FLUSH)
+            inflateEnd(strm.ptr)
+            return@memScoped ret
         }
+
+        if (result != Z_STREAM_END || result != Z_OK) {
+            throw IllegalStateException("zlib error code $result")
+        }
+        din.unpin()
+        dout.unpin()
+
+        offset = array.size
+        return output
     }
 }
